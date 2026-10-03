@@ -1,8 +1,37 @@
 {
-  "name": "septic-case-v1",
+  "name": "ar-quiz",
   "version": "0.1.0",
   "private": true,
-  "scripts": {"dev":"next dev","build":"next build","start":"next start","lint":"next lint"},
-  "dependencies": {"@supabase/ssr":"latest","@supabase/supabase-js":"latest","next":"latest","react":"latest","react-dom":"latest"},
-  "devDependencies": {"@types/node":"latest","@types/react":"latest","@types/react-dom":"latest","typescript":"latest"}
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "dev:vinext": "vite dev --port 3001",
+    "build:vinext": "vite build",
+    "start:vinext": "vite preview",
+    "deploy:vinext": "vinext-cloudflare deploy"
+  },
+  "dependencies": {
+    "@supabase/ssr": "latest",
+    "@supabase/supabase-js": "latest",
+    "@vinext/cloudflare": "^1.0.1",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-server-dom-webpack": "^19.3.0",
+    "vinext": "^1.0.1"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^2.0.0-beta.sha-52b0dc0e9",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "^6.1.1",
+    "@vitejs/plugin-rsc": "^0.5.35",
+    "cf": "^1.0.0-beta.12",
+    "typescript": "latest",
+    "vite": "^8.3.0"
+  },
+  "type": "module"
 }
