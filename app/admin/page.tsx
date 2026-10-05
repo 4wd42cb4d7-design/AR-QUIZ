@@ -44,17 +44,11 @@ type QuestionForm = {
 function emptyQuestion(): QuestionForm {
   return {
     type: 'QCM',
-
     time: 30,
-
     title: '',
-
     stem: '',
-
     explanation: '',
-
     nextData: '',
-
     expected: '',
 
     options: [
@@ -88,13 +82,17 @@ function emptyQuestion(): QuestionForm {
 export default function AdminPage() {
   const router = useRouter();
 
-  const [title, setTitle] = useState('');
+  const [title, setTitle] =
+    useState('');
 
   const [specialty, setSpecialty] =
     useState('Réanimation');
 
   const [difficulty, setDifficulty] =
     useState('Intermédiaire');
+
+  const [audience, setAudience] =
+    useState('interne');
 
   const [description, setDescription] =
     useState('');
@@ -133,7 +131,6 @@ export default function AdminPage() {
       if (!user) {
         setUserEmail('');
         setIsLoggedIn(false);
-
         return;
       }
 
@@ -249,7 +246,6 @@ export default function AdminPage() {
 
               options: [
                 ...question.options,
-
                 {
                   label: '',
                   isCorrect: false,
@@ -559,6 +555,14 @@ export default function AdminPage() {
     }
 
     if (
+      !audience
+    ) {
+      throw new Error(
+        'Le public cible est obligatoire.'
+      );
+    }
+
+    if (
       questions.length === 0
     ) {
       throw new Error(
@@ -662,7 +666,7 @@ export default function AdminPage() {
 
       if (!session) {
         throw new Error(
-          'Vous devez être connecté à AR-QUIZ pour publier le cas. Vous pouvez néanmoins remplir et tester le formulaire sans connexion.'
+          'Vous devez être connecté à MARGUEZ pour publier le cas.'
         );
       }
 
@@ -734,6 +738,7 @@ export default function AdminPage() {
         });
       }
 
+
       const response =
         await fetch(
           '/api/admin/cases',
@@ -756,6 +761,8 @@ export default function AdminPage() {
 
                 difficulty,
 
+                audience,
+
                 description,
 
                 questions:
@@ -764,8 +771,10 @@ export default function AdminPage() {
           }
         );
 
+
       const result =
         await response.json();
+
 
       if (
         !response.ok
@@ -776,6 +785,7 @@ export default function AdminPage() {
         );
       }
 
+
       setMessage(
         'Cas clinique publié avec succès.'
       );
@@ -783,6 +793,7 @@ export default function AdminPage() {
       setMessageType(
         'success'
       );
+
 
       setTitle('');
 
@@ -792,6 +803,10 @@ export default function AdminPage() {
 
       setDifficulty(
         'Intermédiaire'
+      );
+
+      setAudience(
+        'interne'
       );
 
       setDescription('');
@@ -822,15 +837,16 @@ export default function AdminPage() {
     <main className="shell">
 
       <header>
+
         <div className="brand">
 
           <span className="mark">
-            AR
+            M
           </span>
 
           <div>
             <strong>
-              AR-QUIZ
+              MARGUEZ
             </strong>
 
             <small>
@@ -839,6 +855,7 @@ export default function AdminPage() {
           </div>
 
         </div>
+
 
         <button
           type="button"
@@ -886,8 +903,8 @@ export default function AdminPage() {
                 '10px',
             }}
           >
-            Tu n’es pas connecté sur localhost.
-            Tu peux construire le cas, mais il faudra te connecter avant de le publier.
+            Tu n’es pas connecté.
+            Tu peux préparer le cas, mais il faudra te connecter avant de le publier.
           </div>
         )}
 
@@ -963,6 +980,34 @@ export default function AdminPage() {
 
               <option>
                 Expert
+              </option>
+            </select>
+          </label>
+
+
+          <label>
+            <strong>
+              Public cible
+            </strong>
+
+            <select
+              value={audience}
+              onChange={(e) =>
+                setAudience(
+                  e.target.value
+                )
+              }
+            >
+              <option value="interne">
+                INTERNE
+              </option>
+
+              <option value="iade">
+                IADE
+              </option>
+
+              <option value="ide-rea">
+                IDE de Réa
               </option>
             </select>
           </label>

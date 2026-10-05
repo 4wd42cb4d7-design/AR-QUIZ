@@ -24,9 +24,14 @@ type AdminCasePayload = {
   title: string;
   specialty: string;
   difficulty: string;
+
+  audience: 'interne' | 'iade' | 'ide-rea';
+
   description: string;
+
   questions: AdminQuestion[];
 };
+
 
 function createPublicSupabase() {
   return createClient(
@@ -41,6 +46,7 @@ function createPublicSupabase() {
   );
 }
 
+
 function createAdminSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -54,6 +60,7 @@ function createAdminSupabase() {
   );
 }
 
+
 function slugify(text: string) {
   return text
     .normalize('NFD')
@@ -64,58 +71,106 @@ function slugify(text: string) {
     .replace(/^-+|-+$/g, '');
 }
 
-export async function POST(request: NextRequest) {
-  let createdCaseId: number | null = null;
+
+function isValidAudience(
+  value: string
+): value is AdminCasePayload['audience'] {
+  return [
+    'interne',
+    'iade',
+    'ide-rea',
+  ].includes(value);
+}
+
+
+export async function POST(
+  request: NextRequest
+) {
+  let createdCaseId:
+    number | null =
+    null;
 
   try {
     /*
-     * 1. Vérifier que l'utilisateur est connecté
+     * 1. Vérifier l'authentification
      */
-    const authorization = request.headers.get('authorization');
-
-    if (!authorization?.startsWith('Bearer ')) {
-      return NextResponse.json(
-        {
-          error: 'Utilisateur non authentifié.',
-        },
-        {
-          status: 401,
-        }
+    const authorization =
+      request.headers.get(
+        'authorization'
       );
-    }
-
-    const token = authorization.replace('Bearer ', '');
-
-    const publicSupabase = createPublicSupabase();
-
-    const {
-      data: { user },
-      error: userError,
-    } = await publicSupabase.auth.getUser(token);
-
-    if (userError || !user) {
-      return NextResponse.json(
-        {
-          error: 'Session invalide.',
-        },
-        {
-          status: 401,
-        }
-      );
-    }
-
-    /*
-     * 2. Vérifier que l'utilisateur est administrateur
-     */
-    const adminEmail = process.env.ADMIN_EMAIL;
 
     if (
-      !adminEmail ||
-      user.email?.toLowerCase() !== adminEmail.toLowerCase()
+      !authorization?.startsWith(
+        'Bearer '
+      )
     ) {
       return NextResponse.json(
         {
-          error: 'Accès administrateur refusé.',
+          error:
+            'Utilisateur non authentifié.',
+        },
+        {
+          status: 401,
+        }
+      );
+    }
+
+
+    const token =
+      authorization.replace(
+        'Bearer ',
+        ''
+      );
+
+
+    const publicSupabase =
+      createPublicSupabase();
+
+
+    const {
+      data: {
+        user,
+      },
+      error: userError,
+    } =
+      await publicSupabase.auth.getUser(
+        token
+      );
+
+
+    if (
+      userError ||
+      !user
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Session invalide.',
+        },
+        {
+          status: 401,
+        }
+      );
+    }
+
+
+    /*
+     * 2. Vérifier l'administrateur
+     */
+    const adminEmail =
+      process.env.ADMIN_EMAIL;
+
+
+    if (
+      !adminEmail ||
+      !user.email ||
+      user.email.toLowerCase() !==
+        adminEmail.toLowerCase()
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Accès administrateur refusé.',
         },
         {
           status: 403,
@@ -123,26 +178,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+
     /*
-     * 3. Lire le formulaire
+     * 3. Lire les données envoyées
      */
-    const body = (await request.json()) as AdminCasePayload;
+    const body =
+      (await request.json()) as AdminCasePayload;
+
 
     const {
       title,
       specialty,
       difficulty,
+      audience,
       description,
       questions,
     } = body;
 
+
     /*
      * 4. Validation générale
      */
-    if (!title?.trim()) {
+    if (
+      !title?.trim()
+    ) {
       return NextResponse.json(
         {
-          error: 'Le titre du cas est obligatoire.',
+          error:
+            'Le titre du cas est obligatoire.',
         },
         {
           status: 400,
@@ -150,10 +213,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!Array.isArray(questions) || questions.length === 0) {
+
+    if (
+      !specialty?.trim()
+    ) {
       return NextResponse.json(
         {
-          error: 'Ajoutez au moins une question.',
+          error:
+            'La spécialité est obligatoire.',
         },
         {
           status: 400,
@@ -161,137 +228,301 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const adminSupabase = createAdminSupabase();
+
+    if (
+      !audience ||
+      !isValidAudience(
+        audience
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Public cible invalide.',
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+
+    if (
+      !Array.isArray(
+        questions
+      ) ||
+      questions.length ===
+        0
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Ajoutez au moins une question.',
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+
+    const adminSupabase =
+      createAdminSupabase();
+
 
     /*
-     * 5. Créer le cas
+     * 5. Créer un slug
      */
-    const slug = slugify(title);
+    const slug =
+      slugify(title);
 
+
+    if (!slug) {
+      return NextResponse.json(
+        {
+          error:
+            'Impossible de générer l’URL du cas.',
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+
+    /*
+     * 6. Vérifier qu'un cas
+     * avec ce slug n'existe pas déjà
+     */
+    const {
+      data: existingCase,
+      error: existingError,
+    } =
+      await adminSupabase
+        .from(
+          'clinical_cases'
+        )
+        .select(
+          'id'
+        )
+        .eq(
+          'slug',
+          slug
+        )
+        .maybeSingle();
+
+
+    if (existingError) {
+      throw new Error(
+        existingError.message
+      );
+    }
+
+
+    if (existingCase) {
+      return NextResponse.json(
+        {
+          error:
+            'Un cas avec ce titre existe déjà. Modifiez légèrement le titre.',
+        },
+        {
+          status: 409,
+        }
+      );
+    }
+
+
+    /*
+     * 7. Créer le cas clinique
+     */
     const {
       data: clinicalCase,
       error: caseError,
-    } = await adminSupabase
-      .from('clinical_cases')
-      .insert({
-        slug,
-        title: title.trim(),
-        specialty:
-          specialty?.trim() || 'Réanimation',
-        difficulty:
-          difficulty?.trim() || 'Intermédiaire',
-        description:
-          description?.trim() || null,
-      })
-      .select('id, slug')
-      .single();
+    } =
+      await adminSupabase
+        .from(
+          'clinical_cases'
+        )
+        .insert({
+          slug,
 
-    if (caseError || !clinicalCase) {
+          title:
+            title.trim(),
+
+          specialty:
+            specialty.trim(),
+
+          difficulty:
+            difficulty?.trim() ||
+            'Intermédiaire',
+
+          audience,
+
+          description:
+            description?.trim() ||
+            null,
+        })
+        .select(
+          'id, slug'
+        )
+        .single();
+
+
+    if (
+      caseError ||
+      !clinicalCase
+    ) {
       throw new Error(
         caseError?.message ||
           'Impossible de créer le cas clinique.'
       );
     }
 
-    createdCaseId = clinicalCase.id;
+
+    createdCaseId =
+      clinicalCase.id;
+
 
     /*
-     * 6. Créer les questions
+     * 8. Créer les questions
      */
     for (
       let index = 0;
-      index < questions.length;
+      index <
+      questions.length;
       index++
     ) {
-      const question = questions[index];
+      const question =
+        questions[index];
+
 
       /*
-       * Validation question
+       * Validation de base
        */
-      if (!question.stem?.trim()) {
+      if (
+        !question.stem?.trim()
+      ) {
         throw new Error(
           `Question ${index + 1} : l’énoncé est obligatoire.`
         );
       }
 
+
       if (
-        question.time < 20 ||
-        question.time > 60
+        question.time <
+          20 ||
+        question.time >
+          60
       ) {
         throw new Error(
           `Question ${index + 1} : le temps doit être compris entre 20 et 60 secondes.`
         );
       }
 
+
       if (
-        question.type !== 'QCM' &&
-        question.type !== 'QROC'
+        question.type !==
+          'QCM' &&
+        question.type !==
+          'QROC'
       ) {
         throw new Error(
           `Question ${index + 1} : type de question invalide.`
         );
       }
 
+
       /*
-       * Préparer mots-clés QROC
+       * Réponses QROC
        */
       const expectedKeywords =
-        question.type === 'QROC'
-          ? question.expected
+        question.type ===
+        'QROC'
+          ? (
+              question.expected ||
+              ''
+            )
               .split(',')
-              .map((value) => value.trim())
-              .filter(Boolean)
+              .map(
+                (value) =>
+                  value.trim()
+              )
+              .filter(
+                Boolean
+              )
           : [];
 
+
       if (
-        question.type === 'QROC' &&
-        expectedKeywords.length === 0
+        question.type ===
+          'QROC' &&
+        expectedKeywords.length ===
+          0
       ) {
         throw new Error(
           `Question ${index + 1} : ajoutez au moins une réponse acceptée pour la QROC.`
         );
       }
 
+
       /*
-       * Créer la question
+       * 9. Insérer la question
        */
       const {
-        data: createdQuestion,
-        error: questionError,
-      } = await adminSupabase
-        .from('questions')
-        .insert({
-          case_id: clinicalCase.id,
-          position: index + 1,
-          type: question.type,
+        data:
+          createdQuestion,
 
-          time_limit_seconds:
-            question.time,
+        error:
+          questionError,
+      } =
+        await adminSupabase
+          .from(
+            'questions'
+          )
+          .insert({
+            case_id:
+              clinicalCase.id,
 
-          title:
-            question.title?.trim() ||
-            `Question ${index + 1}`,
+            position:
+              index + 1,
 
-          stem:
-            question.stem.trim(),
+            type:
+              question.type,
 
-          stem_image_url:
-            question.stemImageUrl || null,
+            time_limit_seconds:
+              question.time,
 
-          explanation:
-            question.explanation?.trim() || null,
+            title:
+              question.title?.trim() ||
+              `Question ${index + 1}`,
 
-          explanation_image_url:
-            question.explanationImageUrl || null,
+            stem:
+              question.stem.trim(),
 
-          next_data:
-            question.nextData?.trim() || '',
+            stem_image_url:
+              question.stemImageUrl ||
+              null,
 
-          expected_keywords:
-            expectedKeywords,
-        })
-        .select('id')
-        .single();
+            explanation:
+              question.explanation?.trim() ||
+              null,
+
+            explanation_image_url:
+              question.explanationImageUrl ||
+              null,
+
+            next_data:
+              question.nextData?.trim() ||
+              '',
+
+            expected_keywords:
+              expectedKeywords,
+          })
+          .select(
+            'id'
+          )
+          .single();
+
 
       if (
         questionError ||
@@ -303,39 +534,56 @@ export async function POST(request: NextRequest) {
         );
       }
 
+
       /*
-       * 7. Ajouter les réponses QCM
+       * 10. Réponses QCM
        */
-      if (question.type === 'QCM') {
+      if (
+        question.type ===
+        'QCM'
+      ) {
         const validOptions =
           question.options
-            .map((option) => ({
-              ...option,
-              label:
-                option.label?.trim() || '',
-            }))
+            .map(
+              (option) => ({
+                label:
+                  option.label?.trim() ||
+                  '',
+
+                isCorrect:
+                  Boolean(
+                    option.isCorrect
+                  ),
+              })
+            )
             .filter(
               (option) =>
-                option.label.length > 0
+                option.label.length >
+                0
             );
 
-        if (validOptions.length < 2) {
+
+        if (
+          validOptions.length <
+          2
+        ) {
           throw new Error(
             `Question ${index + 1} : ajoutez au moins deux propositions.`
           );
         }
 
-        const hasCorrectAnswer =
-          validOptions.some(
+
+        if (
+          !validOptions.some(
             (option) =>
               option.isCorrect
-          );
-
-        if (!hasCorrectAnswer) {
+          )
+        ) {
           throw new Error(
             `Question ${index + 1} : sélectionnez au moins une bonne réponse.`
           );
         }
+
 
         const optionsToInsert =
           validOptions.map(
@@ -357,13 +605,23 @@ export async function POST(request: NextRequest) {
             })
           );
 
-        const {
-          error: optionsError,
-        } = await adminSupabase
-          .from('question_options')
-          .insert(optionsToInsert);
 
-        if (optionsError) {
+        const {
+          error:
+            optionsError,
+        } =
+          await adminSupabase
+            .from(
+              'question_options'
+            )
+            .insert(
+              optionsToInsert
+            );
+
+
+        if (
+          optionsError
+        ) {
           throw new Error(
             `Question ${index + 1} : ${optionsError.message}`
           );
@@ -371,35 +629,48 @@ export async function POST(request: NextRequest) {
       }
     }
 
+
     /*
-     * 8. Succès
+     * 11. Réponse OK
      */
     return NextResponse.json({
       success: true,
-      slug: clinicalCase.slug,
-      caseId: clinicalCase.id,
+
+      slug:
+        clinicalCase.slug,
+
+      caseId:
+        clinicalCase.id,
+
+      audience,
     });
 
   } catch (error) {
     /*
-     * Si une erreur arrive après la création du cas,
-     * supprimer le cas incomplet.
+     * Si quelque chose échoue après la création
+     * du cas, on supprime le cas incomplet.
      *
-     * Tes relations ON DELETE CASCADE supprimeront
-     * aussi ses questions et propositions.
+     * Comme tes FK utilisent ON DELETE CASCADE,
+     * questions et options seront également
+     * supprimées.
      */
-    if (createdCaseId) {
+    if (
+      createdCaseId
+    ) {
       try {
         const adminSupabase =
           createAdminSupabase();
 
         await adminSupabase
-          .from('clinical_cases')
+          .from(
+            'clinical_cases'
+          )
           .delete()
           .eq(
             'id',
             createdCaseId
           );
+
       } catch (
         cleanupError
       ) {
@@ -410,15 +681,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
+
     console.error(
       'Erreur création cas :',
       error
     );
 
+
     return NextResponse.json(
       {
         error:
-          error instanceof Error
+          error instanceof
+          Error
             ? error.message
             : 'Erreur inconnue lors de la création du cas.',
       },
